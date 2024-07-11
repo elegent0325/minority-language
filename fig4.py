@@ -1,15 +1,14 @@
-#补充实验
-#<k>的影响W%
-#10次循环
-#ER网络
+#fig6a
 import networkx as nx
 import numpy as np
 import matplotlib.pyplot as plt
 
-def simulate_spread(G, infection_rate, base_c2_rate, recovery_rate, initial_infected=10, T=100):
+
+#先感染再自发
+def simulate_spread(G, infection_rate, base_c2_rate, initial_infected=10, T=100):
     N = G.number_of_nodes()
     status = np.zeros(N)  # 0: Susceptible, 1: Infected
-    initial_infected_nodes = np.random.choice(list(G.nodes()), initial_infected, replace=False)
+    initial_infected_nodes = np.random.choice(G.nodes(), initial_infected, replace=False)
     status[initial_infected_nodes] = 1
 
     for t in range(T):
@@ -19,58 +18,58 @@ def simulate_spread(G, infection_rate, base_c2_rate, recovery_rate, initial_infe
             if status[node] == 0:
                 neighbors = list(G.neighbors(node))
                 infected_neighbors = sum(status[neighbor] for neighbor in neighbors)
-
                 infection_prob = 1 - np.power((1 - infection_rate), infected_neighbors)
                 if np.random.rand() < infection_prob:
                     new_infected.append(node)
-
+            
                 if infected_neighbors > 0:
                     c2_rate = base_c2_rate * infected_neighbors / len(neighbors)
                     if np.random.rand() < c2_rate:
                         new_infected.append(node)
-            elif status[node] == 1:
-                if np.random.rand() < recovery_rate:
-                    new_recovered.append(node)
+                
+            elif status[node] == 1 and np.random.rand() < 1:
+                new_recovered.append(node)
+        
+        status[new_infected] = 1
+        status[new_recovered] = 0
 
-        # Update statuses using sets to ensure no duplicate changes
-        new_infected_set = set(new_infected)
-        status[list(new_infected_set)] = 1
-        new_recovered_set = set(new_recovered)
-        status[list(new_recovered_set)] = 0
+    return np.sum(status == 1) / N
 
-    return np.sum(status == 1) / N  # Return the final infected ratio
 
-# Parameters
-infection_rate = 0.1
-base_c2_rate = 0.8
-recovery_rate = 1  # 100% chance of recovery per day
-T = 100
+infection_rate_values = np.linspace(0,0.1,20)
+base_c2_rate_values = np.linspace(0, 1,20)
+c1, c2 = np.meshgrid(infection_rate_values, base_c2_rate_values)
 N = 1000
-initial_infected = 10
-simulations = 20  # Number of simulations to average
+m=3
+G = nx.barabasi_albert_graph(N, m)
+num_simulations = 20
 
-k_values = range(2, 70, 6)  # Adjusted to give a range of <k> values.
+S_counts = np.zeros_like(c1)
+for simulation in range(num_simulations):
+    for i in range(len(infection_rate_values)):
+        for j in range(len(base_c2_rate_values)):
+            S_counts [i, j] += simulate_spread(G, c1[i, j], c2[i, j])
+            
+S_averages = S_counts  / num_simulations
 
-# Collect results
-avg_final_infection_ratios = []
-for k in k_values:
-    infection_ratios = []
-    for _ in range(simulations):
-        # Calculate the probability p for the ER network based on the desired average degree <k>
-        p = k / (N - 1)
-        G = nx.erdos_renyi_graph(N, p)  # Generate an ER network with N nodes and probability p
-        w = simulate_spread(G, infection_rate, base_c2_rate, recovery_rate, initial_infected, T)
-        infection_ratios.append(w)
-    avg_w = np.mean(infection_ratios)
-    avg_final_infection_ratios.append(avg_w)
 
-# Plotting
-plt.figure(figsize=(8, 8))
-plt.plot(k_values, avg_final_infection_ratios, marker='o', color='blue', linewidth=2)
-plt.xlabel('<k>',fontsize=22)
-plt.ylabel(' W%',fontsize=22)
-plt.xticks(fontsize=22)
-plt.yticks(fontsize=22)
-plt.xlim(0,70)
-plt.ylim(-0.01,0.6)
+
+fig = plt.figure(figsize=(15, 15))#图的大小
+ax = fig.add_subplot(111, projection='3d')#绘制三维图
+surf = ax.plot_surface(c1,c2, S_averages, cmap='rainbow',edgecolor='none')#具体
+
+cbar = fig.colorbar(surf, shrink=0.5, aspect=15, pad=0.14)#显色条
+cbar.ax.tick_params(labelsize=24)  # Adjust color bar tick label size
+
+
+ax.set_xlabel(' C', fontsize=24, labelpad=24)
+ax.set_ylabel(' F', fontsize=24, labelpad=24)
+ax.set_zlabel('w% ', fontsize=24, labelpad=24)
+
+ax.tick_params(axis='x', labelsize=24, pad=10)
+ax.tick_params(axis='y', labelsize=24, pad=10)
+ax.tick_params(axis='z', labelsize=24, pad=10)
+ax.set_zlim(0, 0.6)  # Sets the limits for the z-axis
+ax.view_init(elev=30, azim=120)  # Sets the elevation and azimuthal angles
+ax.dist = 9
 plt.show()
